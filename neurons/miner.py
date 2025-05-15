@@ -3,6 +3,10 @@ import traceback
 # isort: off
 import cli_parser  # <- this need to stay before bittensor import
 
+# Import các module tối ưu hóa
+from _miner.optimizer_integration import apply_optimizations
+from _miner.a100_integration import apply_a100_optimizations
+
 import bittensor as bt
 
 # isort: on
@@ -23,6 +27,15 @@ if __name__ == "__main__":
 
         bt.logging.info("Creating miner session...")
         miner_session = MinerSession()
+        
+        # Áp dụng tối ưu hóa chung cho miner
+        bt.logging.info("Applying optimizations...")
+        apply_optimizations()
+        
+        # Áp dụng tối ưu hóa đặc biệt cho A100 GPU
+        # bt.logging.info("Applying A100 optimizations...")
+        # apply_a100_optimizations(miner_session)
+        
         bt.logging.debug("Running main loop...")
         miner_session.run()
     except Exception:
