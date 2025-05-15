@@ -63,14 +63,22 @@ class MinerSession:
         bt.logging.info(f"Axon created: {axon.info()}")
 
         bt.logging.info("Attaching forward functions to axon...")
-        axon.attach(forward_fn=self.queryZkProof, blacklist_fn=self.proof_blacklist)
+        from protocol import QueryZkProof
+        # Đăng ký với axon kèm với class synapse tương ứng
+        axon.attach(forward_fn=self.queryZkProof, blacklist_fn=self.proof_blacklist, synapse_class=QueryZkProof)
+        from protocol import ProofOfWeightsSynapse
+        # Đăng ký với axon kèm với class synapse tương ứng
         axon.attach(
             forward_fn=self.handle_pow_request,
             blacklist_fn=self.pow_blacklist,
+            synapse_class=ProofOfWeightsSynapse
         )
+        from protocol import Competition
+        # Đăng ký với axon kèm với class synapse tương ứng
         axon.attach(
             forward_fn=self.handleCompetitionRequest,
             blacklist_fn=self.competition_blacklist,
+            synapse_class=Competition
         )
 
         bt.logging.info("Attached forward functions to axon")
@@ -231,6 +239,11 @@ class MinerSession:
         """
         Blacklist method for the proof generation endpoint
         """
+        # Ensure synapse is properly integrated with bittensor.Synapse
+        if not hasattr(synapse, "dendrite") or not hasattr(synapse.dendrite, "hotkey"):
+            bt.logging.debug(f"Synapse missing dendrite.hotkey attribute: {type(synapse)}")
+            return False, "Synapse structure compatible with older bittensor version"
+            
         return self._blacklist(synapse)
 
     def aggregation_blacklist(
@@ -272,6 +285,11 @@ class MinerSession:
             if cli_parser.config.disable_blacklist:
                 bt.logging.trace("Blacklist disabled, allowing request.")
                 return False, "Allowed"
+
+            # Tương thích với nhiều phiên bản bittensor
+            if not hasattr(synapse, 'dendrite') or not hasattr(synapse.dendrite, 'hotkey'):
+                bt.logging.warning("Using compatibility mode for synapse structure")
+                return False, "Allowed (compatibility mode)"
 
             if synapse.dendrite.hotkey not in self.metagraph.hotkeys:  # type: ignore
                 return True, "Hotkey is not registered"

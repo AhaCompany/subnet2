@@ -3,13 +3,18 @@ import traceback
 # isort: off
 import cli_parser  # <- this need to stay before bittensor import
 
-# Import các module tối ưu hóa
-from _miner.optimizer_integration import apply_optimizations
-from _miner.a100_integration import apply_a100_optimizations
-
 import bittensor as bt
 
 # isort: on
+
+# Debug để hiểu vấn đề
+print(f"Bittensor version: {bt.__version__}")
+import sys
+print(f"Python version: {sys.version}")
+
+# Import các module tối ưu hóa sau khi đã import bittensor
+from _miner.optimizer_integration import apply_optimizations
+from _miner.a100_integration import apply_a100_optimizations
 
 from _miner.miner_session import MinerSession
 from constants import Roles
