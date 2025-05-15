@@ -19,7 +19,7 @@ from _miner.optimizations import InputPreprocessor
 
 # Import for type hints
 from _validator.models.request_type import RequestType
-from bittensor.synapse import ProofOfWeightsSynapse
+from protocol import ProofOfWeightsSynapse
 
 
 class A100Integration:

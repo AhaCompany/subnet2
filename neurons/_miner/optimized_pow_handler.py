@@ -12,8 +12,9 @@ from typing import Dict, Any, Optional, List
 import bittensor as bt
 import torch
 
-# Import synapse type for type hints
-from bittensor.synapse import ProofOfWeightsSynapse
+# Import for type hints
+# Adapting for compatibility with the project's structure
+from protocol import ProofOfWeightsSynapse
 
 
 def optimized_handle_pow_request(self, synapse: ProofOfWeightsSynapse) -> ProofOfWeightsSynapse:
