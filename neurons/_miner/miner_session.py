@@ -66,62 +66,26 @@ class MinerSession:
 
         bt.logging.info("Attaching forward functions to axon...")
         try:
-            # Fix for Bittensor 9.4.0 which requires Synapse inheritance
-            from protocol import QueryZkProof, ProofOfWeightsSynapse, Competition
+            # Sử dụng adapter để tương thích với Bittensor 9.4.0
+            from _miner.forward_adapters import attach_with_adapter
             
-            # Make sure our protocol classes inherit from bt.Synapse
-            if not issubclass(QueryZkProof, bt.Synapse):
-                # Create classes that inherit from both our protocol and bt.Synapse
-                class QueryZkProofFixed(QueryZkProof, bt.Synapse):
-                    pass
+            # Đăng ký từng hàm riêng biệt với adapter
+            success = True
+            
+            # Đăng ký cÁc forward functions cho axon
+            if not attach_with_adapter(axon, self.queryZkProof, self.proof_blacklist, "QueryZkProof"):
+                success = False
                 
-                class ProofOfWeightsSynapseFixed(ProofOfWeightsSynapse, bt.Synapse):
-                    pass
+            if not attach_with_adapter(axon, self.handle_pow_request, self.pow_blacklist, "ProofOfWeightsSynapse"):
+                success = False
                 
-                class CompetitionFixed(Competition, bt.Synapse):
-                    pass
+            if not attach_with_adapter(axon, self.handleCompetitionRequest, self.competition_blacklist, "Competition"):
+                success = False
                 
-                # Use these fixed classes
-                def queryZkProof_wrapper(self, synapse: QueryZkProofFixed):
-                    return self.queryZkProof(synapse)
+            if not success:
+                raise RuntimeError("Failed to attach one or more forward functions")
                 
-                def handle_pow_request_wrapper(self, synapse: ProofOfWeightsSynapseFixed):
-                    return self.handle_pow_request(synapse)
-                
-                def handleCompetitionRequest_wrapper(self, synapse: CompetitionFixed):
-                    return self.handleCompetitionRequest(synapse)
-                
-                # Attach with fixed classes
-                axon.attach(forward_fn=queryZkProof_wrapper, blacklist_fn=self.proof_blacklist)
-                bt.logging.info("Attached QueryZkProof forward function to axon")
-                
-                axon.attach(
-                    forward_fn=handle_pow_request_wrapper,
-                    blacklist_fn=self.pow_blacklist
-                )
-                bt.logging.info("Attached handle_pow_request forward function to axon")
-                
-                axon.attach(
-                    forward_fn=handleCompetitionRequest_wrapper,
-                    blacklist_fn=self.competition_blacklist
-                )
-                bt.logging.info("Attached handleCompetitionRequest forward function to axon")
-            else:
-                # Our protocol classes already inherit from bt.Synapse
-                axon.attach(forward_fn=self.queryZkProof, blacklist_fn=self.proof_blacklist)
-                bt.logging.info("Attached QueryZkProof forward function to axon")
-                
-                axon.attach(
-                    forward_fn=self.handle_pow_request,
-                    blacklist_fn=self.pow_blacklist
-                )
-                bt.logging.info("Attached handle_pow_request forward function to axon")
-                
-                axon.attach(
-                    forward_fn=self.handleCompetitionRequest,
-                    blacklist_fn=self.competition_blacklist
-                )
-                bt.logging.info("Attached handleCompetitionRequest forward function to axon")
+            bt.logging.info("Successfully attached all forward functions to axon with adapters")
         except Exception as e:
             bt.logging.error(f"Error attaching forward functions to axon: {e}")
             bt.logging.error(traceback.format_exc())
