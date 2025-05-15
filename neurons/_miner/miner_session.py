@@ -63,23 +63,29 @@ class MinerSession:
         bt.logging.info(f"Axon created: {axon.info()}")
 
         bt.logging.info("Attaching forward functions to axon...")
-        from protocol import QueryZkProof
-        # Đăng ký với axon kèm với class synapse tương ứng
-        axon.attach(forward_fn=self.queryZkProof, blacklist_fn=self.proof_blacklist, synapse_class=QueryZkProof)
-        from protocol import ProofOfWeightsSynapse
-        # Đăng ký với axon kèm với class synapse tương ứng
-        axon.attach(
-            forward_fn=self.handle_pow_request,
-            blacklist_fn=self.pow_blacklist,
-            synapse_class=ProofOfWeightsSynapse
-        )
-        from protocol import Competition
-        # Đăng ký với axon kèm với class synapse tương ứng
-        axon.attach(
-            forward_fn=self.handleCompetitionRequest,
-            blacklist_fn=self.competition_blacklist,
-            synapse_class=Competition
-        )
+        try:
+            # Đăng ký các hàm xử lý cho axon - tương thích với Bittensor 9.4.0
+            # QueryZkProof
+            axon.attach(forward_fn=self.queryZkProof, blacklist_fn=self.proof_blacklist)
+            bt.logging.info("Attached QueryZkProof forward function to axon")
+            
+            # ProofOfWeightsSynapse
+            axon.attach(
+                forward_fn=self.handle_pow_request,
+                blacklist_fn=self.pow_blacklist
+            )
+            bt.logging.info("Attached handle_pow_request forward function to axon")
+            
+            # Competition
+            axon.attach(
+                forward_fn=self.handleCompetitionRequest,
+                blacklist_fn=self.competition_blacklist
+            )
+            bt.logging.info("Attached handleCompetitionRequest forward function to axon")
+        except Exception as e:
+            bt.logging.error(f"Error attaching forward functions to axon: {e}")
+            bt.logging.error(traceback.format_exc())
+            raise
 
         bt.logging.info("Attached forward functions to axon")
 
