@@ -68,6 +68,11 @@ class MinerSession:
         try:
             # Sử dụng vá trực tiếp cho axon để bỏ qua kiểm tra kiểu
             from _miner.axon_patcher import patch_axon_attach
+            # Đăng ký các lớp synapse với Bittensor
+            from _miner.synapse_registry import register_protocol_synapses
+            
+            # Đảm bảo các synapse được đăng ký với Bittensor
+            register_protocol_synapses()
             
             # Vá trực tiếp cho axon.attach
             patch_axon_attach()
