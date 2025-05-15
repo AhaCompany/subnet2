@@ -66,18 +66,18 @@ class MinerSession:
 
         bt.logging.info("Attaching forward functions to axon...")
         try:
-            # Sử dụng vá trực tiếp cho axon để bỏ qua kiểm tra kiểu
+            # Phương pháp trực tiếp: thay thể hoàn toàn cơ chế xử lý synapse
+            from _miner.direct_synapse_handler import setup_direct_handlers
             from _miner.axon_patcher import patch_axon_attach
-            # Đăng ký các lớp synapse với Bittensor
-            from _miner.synapse_registry import register_protocol_synapses
             
-            # Đảm bảo các synapse được đăng ký với Bittensor
-            register_protocol_synapses()
+            # Thiết lập trực tiếp các hàm xử lý
+            setup_direct_handlers()
+            bt.logging.info("Set up direct handlers for synapse requests")
             
-            # Vá trực tiếp cho axon.attach
+            # Vẫn sử dụng vá cho axon.attach để đăng ký các hàm
             patch_axon_attach()
             
-            # Đăng ký các hàm xử lý - vì đã bỏ qua kiểm tra kiểu nên sẽ không còn lỗi
+            # Đăng ký các hàm xử lý
             axon.attach(forward_fn=self.queryZkProof, blacklist_fn=self.proof_blacklist)
             bt.logging.info("Attached QueryZkProof forward function to axon")
             
