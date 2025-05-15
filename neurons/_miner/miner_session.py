@@ -3,7 +3,9 @@ import json
 import os
 import time
 import traceback
-from typing import Tuple, Union
+from typing import Tuple, Union, Callable, TypeVar, cast
+import inspect
+from functools import wraps
 
 import bittensor as bt
 import websocket
@@ -64,21 +66,36 @@ class MinerSession:
 
         bt.logging.info("Attaching forward functions to axon...")
         try:
-            # Đăng ký các hàm xử lý cho axon - tương thích với Bittensor 9.4.0
+            # Khắc phục với các lop Synapse của Bittensor 9.4.0
+            from protocol import QueryZkProof, ProofOfWeightsSynapse, Competition
+            
+            # Hàm fix lỗi Synapse không kế thừa
+            def fix_signature(synapse_class):
+                def decorator(func):
+                    @wraps(func)
+                    def wrapper(self, synapse):
+                        return func(self, synapse)
+                    wrapper.__annotations__ = {'synapse': synapse_class}
+                    return wrapper
+                return decorator
+            
             # QueryZkProof
-            axon.attach(forward_fn=self.queryZkProof, blacklist_fn=self.proof_blacklist)
+            fixed_query_zk = fix_signature(bt.Synapse)(self.queryZkProof)
+            axon.attach(forward_fn=fixed_query_zk, blacklist_fn=self.proof_blacklist)
             bt.logging.info("Attached QueryZkProof forward function to axon")
             
             # ProofOfWeightsSynapse
+            fixed_pow = fix_signature(bt.Synapse)(self.handle_pow_request)
             axon.attach(
-                forward_fn=self.handle_pow_request,
+                forward_fn=fixed_pow,
                 blacklist_fn=self.pow_blacklist
             )
             bt.logging.info("Attached handle_pow_request forward function to axon")
             
             # Competition
+            fixed_comp = fix_signature(bt.Synapse)(self.handleCompetitionRequest)
             axon.attach(
-                forward_fn=self.handleCompetitionRequest,
+                forward_fn=fixed_comp,
                 blacklist_fn=self.competition_blacklist
             )
             bt.logging.info("Attached handleCompetitionRequest forward function to axon")
@@ -241,7 +258,7 @@ class MinerSession:
             bt.logging.warning(f"Failed to sync metagraph: {e}")
             return False
 
-    def proof_blacklist(self, synapse: QueryZkProof) -> Tuple[bool, str]:
+    def proof_blacklist(self, synapse: bt.Synapse) -> Tuple[bool, str]:
         """
         Blacklist method for the proof generation endpoint
         """
@@ -253,20 +270,20 @@ class MinerSession:
         return self._blacklist(synapse)
 
     def aggregation_blacklist(
-        self, synapse: QueryForProofAggregation
+        self, synapse: bt.Synapse
     ) -> Tuple[bool, str]:
         """
         Blacklist method for the aggregation endpoint
         """
         return self._blacklist(synapse)
 
-    def pow_blacklist(self, synapse: ProofOfWeightsSynapse) -> Tuple[bool, str]:
+    def pow_blacklist(self, synapse: bt.Synapse) -> Tuple[bool, str]:
         """
         Blacklist method for the proof generation endpoint
         """
         return self._blacklist(synapse)
 
-    def competition_blacklist(self, synapse: Competition) -> Tuple[bool, str]:
+    def competition_blacklist(self, synapse: bt.Synapse) -> Tuple[bool, str]:
         """
         Blacklist method for the competition endpoint
         """
@@ -274,7 +291,7 @@ class MinerSession:
 
     def _blacklist(
         self,
-        synapse: Union[QueryZkProof, QueryForProofAggregation, ProofOfWeightsSynapse],
+        synapse: bt.Synapse,
     ) -> Tuple[bool, str]:
         """
         Filters requests if any of the following conditions are met:
@@ -293,24 +310,35 @@ class MinerSession:
                 return False, "Allowed"
 
             # Tương thích với nhiều phiên bản bittensor
-            if not hasattr(synapse, 'dendrite') or not hasattr(synapse.dendrite, 'hotkey'):
-                bt.logging.warning("Using compatibility mode for synapse structure")
+            # Chắc chắn rằng synapse có dendrite và hotkey
+            if not hasattr(synapse, 'dendrite'):
+                bt.logging.warning("Synapse doesn't have dendrite attribute")
+                return False, "Allowed (compatibility mode)"
+                
+            if not hasattr(synapse.dendrite, 'hotkey'):
+                bt.logging.warning("Synapse doesn't have dendrite.hotkey attribute")
                 return False, "Allowed (compatibility mode)"
 
-            if synapse.dendrite.hotkey not in self.metagraph.hotkeys:  # type: ignore
-                return True, "Hotkey is not registered"
-
-            requesting_uid = self.metagraph.hotkeys.index(synapse.dendrite.hotkey)  # type: ignore
+            # Trích xuất hotkey an toàn
+            try:
+                hotkey = synapse.dendrite.hotkey
+                if hotkey not in self.metagraph.hotkeys:
+                    return True, "Hotkey is not registered"
+                    
+                requesting_uid = self.metagraph.hotkeys.index(hotkey)
+            except Exception as e:
+                bt.logging.warning(f"Error accessing hotkey: {e}")
+                return False, "Allowed (compatibility mode)"
             stake = self.metagraph.S[requesting_uid].item()
 
             try:
                 bt.logging.info(
-                    f"Request by: {synapse.dendrite.hotkey} | UID: {requesting_uid} "  # type: ignore
+                    f"Request by: {hotkey} | UID: {requesting_uid} "
                     f"| Stake: {stake} {STEAK}"
                 )
             except UnicodeEncodeError:
                 bt.logging.info(
-                    f"Request by: {synapse.dendrite.hotkey} | UID: {requesting_uid} | Stake: {stake}"  # type: ignore
+                    f"Request by: {hotkey} | UID: {requesting_uid} | Stake: {stake}"
                 )
 
             if stake < VALIDATOR_STAKE_THRESHOLD:
@@ -327,7 +355,7 @@ class MinerSession:
             bt.logging.error(f"Error during blacklist {e}")
             return True, "An error occurred while filtering the request"
 
-    def handleCompetitionRequest(self, synapse: Competition) -> Competition:
+    def handleCompetitionRequest(self, synapse: bt.Synapse) -> bt.Synapse:
         """
         Handle competition circuit requests from validators.
 
@@ -421,7 +449,7 @@ class MinerSession:
                 error=str(e),
             )
 
-    def queryZkProof(self, synapse: QueryZkProof) -> QueryZkProof:
+    def queryZkProof(self, synapse: bt.Synapse) -> bt.Synapse:
         """
         This function run proof generation of the model (with its output as well)
         """
@@ -503,8 +531,8 @@ class MinerSession:
         return synapse
 
     def handle_pow_request(
-        self, synapse: ProofOfWeightsSynapse
-    ) -> ProofOfWeightsSynapse:
+        self, synapse: bt.Synapse
+    ) -> bt.Synapse:
         """
         Handles a proof of weights request
         """
