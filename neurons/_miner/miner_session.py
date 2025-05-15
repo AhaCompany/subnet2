@@ -66,39 +66,62 @@ class MinerSession:
 
         bt.logging.info("Attaching forward functions to axon...")
         try:
-            # Khắc phục với các lop Synapse của Bittensor 9.4.0
+            # Fix for Bittensor 9.4.0 which requires Synapse inheritance
             from protocol import QueryZkProof, ProofOfWeightsSynapse, Competition
             
-            # Hàm fix lỗi Synapse không kế thừa
-            def fix_signature(synapse_class):
-                def decorator(func):
-                    @wraps(func)
-                    def wrapper(self, synapse):
-                        return func(self, synapse)
-                    wrapper.__annotations__ = {'synapse': synapse_class}
-                    return wrapper
-                return decorator
-            
-            # QueryZkProof
-            fixed_query_zk = fix_signature(bt.Synapse)(self.queryZkProof)
-            axon.attach(forward_fn=fixed_query_zk, blacklist_fn=self.proof_blacklist)
-            bt.logging.info("Attached QueryZkProof forward function to axon")
-            
-            # ProofOfWeightsSynapse
-            fixed_pow = fix_signature(bt.Synapse)(self.handle_pow_request)
-            axon.attach(
-                forward_fn=fixed_pow,
-                blacklist_fn=self.pow_blacklist
-            )
-            bt.logging.info("Attached handle_pow_request forward function to axon")
-            
-            # Competition
-            fixed_comp = fix_signature(bt.Synapse)(self.handleCompetitionRequest)
-            axon.attach(
-                forward_fn=fixed_comp,
-                blacklist_fn=self.competition_blacklist
-            )
-            bt.logging.info("Attached handleCompetitionRequest forward function to axon")
+            # Make sure our protocol classes inherit from bt.Synapse
+            if not issubclass(QueryZkProof, bt.Synapse):
+                # Create classes that inherit from both our protocol and bt.Synapse
+                class QueryZkProofFixed(QueryZkProof, bt.Synapse):
+                    pass
+                
+                class ProofOfWeightsSynapseFixed(ProofOfWeightsSynapse, bt.Synapse):
+                    pass
+                
+                class CompetitionFixed(Competition, bt.Synapse):
+                    pass
+                
+                # Use these fixed classes
+                def queryZkProof_wrapper(self, synapse: QueryZkProofFixed):
+                    return self.queryZkProof(synapse)
+                
+                def handle_pow_request_wrapper(self, synapse: ProofOfWeightsSynapseFixed):
+                    return self.handle_pow_request(synapse)
+                
+                def handleCompetitionRequest_wrapper(self, synapse: CompetitionFixed):
+                    return self.handleCompetitionRequest(synapse)
+                
+                # Attach with fixed classes
+                axon.attach(forward_fn=queryZkProof_wrapper, blacklist_fn=self.proof_blacklist)
+                bt.logging.info("Attached QueryZkProof forward function to axon")
+                
+                axon.attach(
+                    forward_fn=handle_pow_request_wrapper,
+                    blacklist_fn=self.pow_blacklist
+                )
+                bt.logging.info("Attached handle_pow_request forward function to axon")
+                
+                axon.attach(
+                    forward_fn=handleCompetitionRequest_wrapper,
+                    blacklist_fn=self.competition_blacklist
+                )
+                bt.logging.info("Attached handleCompetitionRequest forward function to axon")
+            else:
+                # Our protocol classes already inherit from bt.Synapse
+                axon.attach(forward_fn=self.queryZkProof, blacklist_fn=self.proof_blacklist)
+                bt.logging.info("Attached QueryZkProof forward function to axon")
+                
+                axon.attach(
+                    forward_fn=self.handle_pow_request,
+                    blacklist_fn=self.pow_blacklist
+                )
+                bt.logging.info("Attached handle_pow_request forward function to axon")
+                
+                axon.attach(
+                    forward_fn=self.handleCompetitionRequest,
+                    blacklist_fn=self.competition_blacklist
+                )
+                bt.logging.info("Attached handleCompetitionRequest forward function to axon")
         except Exception as e:
             bt.logging.error(f"Error attaching forward functions to axon: {e}")
             bt.logging.error(traceback.format_exc())
