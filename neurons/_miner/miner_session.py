@@ -131,7 +131,10 @@ class MinerSession:
             try:
                 if step % 10 == 0:
                     if not cli_parser.config.no_auto_update:
-                        self.auto_update.try_update()
+                        try:
+                            self.auto_update.try_update()
+                        except Exception as e:
+                            bt.logging.warning(f"Auto-update failed, but continuing operation: {e}")
                     else:
                         bt.logging.info(
                             "Automatic updates are disabled, skipping version check"

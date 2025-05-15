@@ -31,13 +31,9 @@ def patch_axon_attach():
         Patched version of attach that bypasses the type checking.
         """
         try:
-            # Get the signature of the forward_fn
-            sig = inspect.signature(forward_fn)
-            params = list(sig.parameters.values())
-            
-            # Make sure the function has at least two parameters (self + synapse)
-            if len(params) < 2:
-                raise ValueError("forward_fn must have at least two parameters (self + synapse)")
+            # Bỏ qua kiểm tra signature - chỉ thêm vào axon
+            # Hàm của lớp trên server có thể không có params trong inspect,
+            # nhưng vẫn hoạt động bình thường do Python tự truyền tham số self + synapse
             
             # Bypass the type checking by skipping the issubclass check
             # Add the endpoint to the axon's forward_fns and blacklist_fns
