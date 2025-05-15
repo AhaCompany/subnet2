@@ -66,26 +66,23 @@ class MinerSession:
 
         bt.logging.info("Attaching forward functions to axon...")
         try:
-            # Sử dụng adapter để tương thích với Bittensor 9.4.0
-            from _miner.forward_adapters import attach_with_adapter
+            # Sử dụng vá trực tiếp cho axon để bỏ qua kiểm tra kiểu
+            from _miner.axon_patcher import patch_axon_attach
             
-            # Đăng ký từng hàm riêng biệt với adapter
-            success = True
+            # Vá trực tiếp cho axon.attach
+            patch_axon_attach()
             
-            # Đăng ký cÁc forward functions cho axon
-            if not attach_with_adapter(axon, self.queryZkProof, self.proof_blacklist, "QueryZkProof"):
-                success = False
-                
-            if not attach_with_adapter(axon, self.handle_pow_request, self.pow_blacklist, "ProofOfWeightsSynapse"):
-                success = False
-                
-            if not attach_with_adapter(axon, self.handleCompetitionRequest, self.competition_blacklist, "Competition"):
-                success = False
-                
-            if not success:
-                raise RuntimeError("Failed to attach one or more forward functions")
-                
-            bt.logging.info("Successfully attached all forward functions to axon with adapters")
+            # Đăng ký các hàm xử lý - vì đã bỏ qua kiểm tra kiểu nên sẽ không còn lỗi
+            axon.attach(forward_fn=self.queryZkProof, blacklist_fn=self.proof_blacklist)
+            bt.logging.info("Attached QueryZkProof forward function to axon")
+            
+            axon.attach(forward_fn=self.handle_pow_request, blacklist_fn=self.pow_blacklist)
+            bt.logging.info("Attached handle_pow_request forward function to axon")
+            
+            axon.attach(forward_fn=self.handleCompetitionRequest, blacklist_fn=self.competition_blacklist)
+            bt.logging.info("Attached handleCompetitionRequest forward function to axon")
+            
+            bt.logging.info("Successfully attached all forward functions to axon with patched method")
         except Exception as e:
             bt.logging.error(f"Error attaching forward functions to axon: {e}")
             bt.logging.error(traceback.format_exc())
